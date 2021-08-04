@@ -8,43 +8,46 @@ services:
     container_name: gitea_database
     restart: always
     healthcheck:
+      # Set the status to healthy when the database is ready for the given user
       test: "/usr/bin/pg_isready -U ${GITEA_DATABASE_USER}"
       interval: "10s"
       timeout: "10s"
       retries: "20"
     environment:
-      # Setup the database configuration
+      # Setup the postgres database information and credentials
+      - "TZ=${GITEA_DATABASE_TIMEZONE}"
       - "POSTGRES_USER=${GITEA_DATABASE_USER}"
       - "POSTGRES_PASSWORD=${GITEA_DATABASE_PASSWORD}"
       - "POSTGRES_DB=${GITEA_DATABASE_DATABASE}"
     labels:
-      # Make traefik ignore this container
+      # Make traefik ignore this container (because it's on our private network)
       - "traefik.enable=false"
     volumes:
-      # Setup the volume for persistent data
+      # Setup the volume to persist database data to host
       - "${GITEA_DATABASE_HOST_DATA_PATH}:/var/lib/postgresql/data"
     networks:
+      # Make the container to belong to the same network to communicate with the app
       - gitea-net
 
-  # A painless self-hosted Git service
+  # A painless, lightweight, self-hosted Git service
   gitea_app:
     image: "${GITEA_APP_IMAGE_TAG}"
     container_name: gitea_app
     restart: always
     environment:
-      # Setup the configuration for the proxy
+      # Setup the configuration for the reverse proxy (routing, prevent static resources to break, etc.)
       - "GITEA__server__HTTP_PORT=${GITEA_APP_PORT}"
       - "GITEA__server__DOMAIN=${GITEA_APP_DOMAIN}"
       - "GITEA__server__SSH_DOMAIN=${GITEA_APP_DOMAIN}"
       - "GITEA__server__HTTP_STATIC_URL_PREFIX=/${GITEA_APP_SUBPATH}"
       - "GITEA__server__ROOT_URL=https://${GITEA_APP_DOMAIN}/${GITEA_APP_SUBPATH}"
-      # Setup the database configuration
+      # Setup the database configuration (pre-setup the credentials and other settings for the database)
       - "GITEA__database__DB_TYPE=postgres"
       - "GITEA__database__HOST=gitea_database"
       - "GITEA__database__USER=${GITEA_DATABASE_USER}"
       - "GITEA__database__PASSWD=${GITEA_DATABASE_PASSWORD}"
       - "GITEA__database__NAME=${GITEA_DATABASE_DATABASE}"
-      # Other configurations
+      # Other configurations (registration, timezone, theme, etc.)
       - "GITEA__service__DISABLE_REGISTRATION=true"
       - "GITEA__time__DEFAULT_UI_LOCATION=${GITEA_APP_TIMEZONE}"
       - "GITEA__ui__DEFAULT_THEME=arc-green"
@@ -53,32 +56,34 @@ services:
     labels:
       # Make traefik listen this container
       - "traefik.enable=true"
-      # Describe common middlewares
+      # Describe common middlewares to be used
       - "traefik.http.middlewares.strip-chain.chain.middlewares=gitea-stripprefix"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.prefixes=/${GITEA_APP_SUBPATH}"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.forceSlash=false"
-      # Define the default routing and paths
+      # Define the default HTTP routing and paths (for those in a trusted-network and wanting to use plain HTTP)
       - "traefik.http.routers.gitea.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea.entrypoints=http"
       - "traefik.http.routers.gitea.middlewares=strip-chain"
-      # Define the default HTTPS routing
+      # Define the default HTTPS routing and paths (HTTP is redirected to HTTPS by default because our traefik config)
       - "traefik.http.routers.gitea-secure.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea-secure.entrypoints=https"
       - "traefik.http.routers.gitea-secure.middlewares=strip-chain"
-      # Set the TLS (Transport Layer Security) certificate properties
+      # Set the TLS (Transport Layer Security) properties
       - "traefik.http.routers.gitea-secure.tls=true"
       - "traefik.http.routers.gitea-secure.tls.certresolver=http"
-      - "traefik.http.routers.gitea.service=gitea_app"
       # Other settings
+      - "traefik.http.routers.gitea.service=gitea_app"
       - "traefik.http.services.gitea.loadbalancer.server.port=${GITEA_APP_PORT}"
       - "traefik.docker.network=gitea-net"
     volumes:
-      # Setup the volume for persistent data
+      # Setup the volume to persist repositories and other data to host
       - "${GITEA_APP_HOST_DATA_PATH}:/data"
     networks:
+      # Using two networks, the internal to communicate with the DB, and the external to communicate with traefik
       - gitea-net
       - traefik-net
     depends_on:
+      # Waiting for the database to be ready before starting Gitea
       gitea_database:
         condition: service_healthy
 
