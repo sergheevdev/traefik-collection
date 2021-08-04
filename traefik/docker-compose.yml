@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+
+  # Traefik the cloud native application proxy
+  traefik_proxy:
+    image: "${TRAEFIK_IMAGE_TAG}"
+    container_name: traefik
+    ports:
+      - "80:80"   # HTTP
+      - "443:443" # HTTPS
+    command:
+      # CLI arguments
+      - "--global.checkNewVersion=true"
+      - "--global.sendAnonymousUsage=false"
+      - "--entrypoints.http.address=:80"
+      - "--entrypoints.https.address=:443"
+      - "--entrypoints.traefik.address=:8080"
+      - "--api=true"
+      - "--api.insecure=true"
+      - "--log=true"
+      - "--accesslog=true"
+      - "--accesslog.filePath=/traefik.log"
+      - "--accesslog.bufferingSize=100"
+      - "--accesslog.filters.statusCodes=400-499"
+      - "--providers.docker=true"
+    labels:
+      - "traefik.enable=true"
+      # Redirect HTTP to HTTPS
+      - "traefik.http.routers.http-catchall.entrypoints=http"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    volumes:
+      # Make traefik listen to docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/certs:/certs
+      - ./data/config:/etc/traefik
+      - ./data/traefik.log:/traefik.log
+    networks:
+      - traefik-net
+
+networks:
+  traefik-net:
+    external: true
