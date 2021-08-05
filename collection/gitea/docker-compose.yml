@@ -60,6 +60,9 @@ services:
       - "traefik.http.middlewares.strip-chain.chain.middlewares=gitea-stripprefix"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.prefixes=/${GITEA_APP_SUBPATH}"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.forceSlash=false"
+      # To redirect from HTTP to HTTPS, remove from "gitea" router the "strip-chain" middleware, and register the "gitea-redirect" middleware instead
+      - "traefik.http.middlewares.gitea-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.gitea-redirect.redirectscheme.permanent=true"
       # Define the default HTTP routing and paths (for those in a trusted-network and wanting to use plain HTTP)
       - "traefik.http.routers.gitea.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea.entrypoints=http"
