@@ -8,13 +8,13 @@ services:
     container_name: gitea_database
     restart: always
     healthcheck:
-      # Set the status to healthy when the database is ready for the given user
+      # Set the status to healthy when the database is ready (accesible for the specified user)
       test: "/usr/bin/pg_isready -U ${GITEA_DATABASE_USER}"
-      interval: "10s"
-      timeout: "10s"
-      retries: "20"
+      interval: "5s"
+      timeout: "5s"
+      retries: "25"
     environment:
-      # Setup the postgres database information and credentials
+      # Setup the postgres database timezone and credentials
       - "TZ=${GITEA_DATABASE_TIMEZONE}"
       - "POSTGRES_USER=${GITEA_DATABASE_USER}"
       - "POSTGRES_PASSWORD=${GITEA_DATABASE_PASSWORD}"
@@ -23,10 +23,10 @@ services:
       # Make traefik ignore this container (because it's on our private network)
       - "traefik.enable=false"
     volumes:
-      # Setup the volume to persist database data to host
+      # Setup the volume to persist database information to host
       - "${GITEA_DATABASE_HOST_DATA_PATH}:/var/lib/postgresql/data"
     networks:
-      # Make the container to belong to the same network to communicate with the app
+      # Make the container belong to the same private network to communicate with the app
       - gitea-net
 
   # A painless, lightweight, self-hosted Git service
@@ -35,7 +35,7 @@ services:
     container_name: gitea_app
     restart: always
     environment:
-      # Setup the configuration for the reverse proxy (routing, prevent static resources to break, etc.)
+      # Prepare the configuration for the reverse proxy (routing, prevent static resources to break, etc.)
       - "GITEA__server__HTTP_PORT=${GITEA_APP_PORT}"
       - "GITEA__server__DOMAIN=${GITEA_APP_DOMAIN}"
       - "GITEA__server__SSH_DOMAIN=${GITEA_APP_DOMAIN}"
@@ -47,33 +47,38 @@ services:
       - "GITEA__database__USER=${GITEA_DATABASE_USER}"
       - "GITEA__database__PASSWD=${GITEA_DATABASE_PASSWORD}"
       - "GITEA__database__NAME=${GITEA_DATABASE_DATABASE}"
+      - "GITEA__database__MAX_OPEN_CONNS=3"
       # Other configurations (registration, timezone, theme, etc.)
+      - "GITEA__server__OFFLINE_MODE=true"
+      - "GITEA__picture__DISABLE_GRAVATAR=true"
       - "GITEA__service__DISABLE_REGISTRATION=true"
       - "GITEA__time__DEFAULT_UI_LOCATION=${GITEA_APP_TIMEZONE}"
       - "GITEA__ui__DEFAULT_THEME=arc-green"
       - "GITEA__ui__USE_SERVICE_WORKER=false"
       - "GITEA__other__SHOW_FOOTER_VERSION=false"
+      - "GITEA__other__SHOW_FOOTER_BRANDING=false"
+      - "GITEA__other__SHOW_FOOTER_TEMPLATE_LOAD_TIME=false"
     labels:
       # Make traefik listen this container
       - "traefik.enable=true"
-      # Describe common middlewares to be used
-      - "traefik.http.middlewares.strip-chain.chain.middlewares=gitea-stripprefix"
+      # Describe common middlewares to be used (in this case only one for the concrete subpath routing, i.e.; http://proxy.testing.com/gitea)
+      - "traefik.http.middlewares.strip-prefix-chain.chain.middlewares=gitea-stripprefix"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.prefixes=/${GITEA_APP_SUBPATH}"
       - "traefik.http.middlewares.gitea-stripprefix.stripprefix.forceSlash=false"
-      # To redirect from HTTP to HTTPS, remove from "gitea" router the "strip-chain" middleware, and register the "gitea-redirect" middleware instead
-      - "traefik.http.middlewares.gitea-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.gitea-redirect.redirectscheme.permanent=true"
-      # Define the default HTTP routing and paths (for those in a trusted-network and wanting to use plain HTTP)
+      # To redirect from HTTP to HTTPS, replace the "strip-prefix-chain" middleware from the "gitea" router to "gitea-https-redirect" middleware instead
+      - "traefik.http.middlewares.gitea-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.gitea-https-redirect.redirectscheme.permanent=true"
+      # Define the default HTTP routing and paths (for those in a trusted-network and wanting to use plain HTTP, which is enabled by default)
       - "traefik.http.routers.gitea.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea.entrypoints=http"
-      - "traefik.http.routers.gitea.middlewares=strip-chain"
-      # Define the default HTTPS routing and paths (HTTP is is allowed and not redirected to HTTPS by default)
+      - "traefik.http.routers.gitea.middlewares=strip-prefix-chain"
+      # Define the default HTTPS routing and paths (plain HTTP is allowed and not redirected to HTTPS by default)
       - "traefik.http.routers.gitea-secure.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea-secure.entrypoints=https"
-      - "traefik.http.routers.gitea-secure.middlewares=strip-chain"
+      - "traefik.http.routers.gitea-secure.middlewares=strip-prefix-chain"
       # Set the TLS (Transport Layer Security) properties
       - "traefik.http.routers.gitea-secure.tls=true"
-      # Other settings
+      # Other settings (container internal port, docker network, etc.)
       - "traefik.http.services.gitea.loadbalancer.server.port=${GITEA_APP_PORT}"
       - "traefik.docker.network=traefik_traefik-net"
     volumes:
