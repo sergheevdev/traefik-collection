@@ -67,7 +67,7 @@ services:
       - "traefik.http.routers.gitea.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea.entrypoints=http"
       - "traefik.http.routers.gitea.middlewares=strip-chain"
-      # Define the default HTTPS routing and paths (HTTP is redirected to HTTPS by default because our traefik config)
+      # Define the default HTTPS routing and paths (HTTP is is allowed and not redirected to HTTPS by default)
       - "traefik.http.routers.gitea-secure.rule=Host(`${GITEA_APP_DOMAIN}`) && PathPrefix(`/${GITEA_APP_SUBPATH}`)"
       - "traefik.http.routers.gitea-secure.entrypoints=https"
       - "traefik.http.routers.gitea-secure.middlewares=strip-chain"
