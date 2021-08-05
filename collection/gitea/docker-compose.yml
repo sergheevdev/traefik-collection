@@ -70,18 +70,16 @@ services:
       - "traefik.http.routers.gitea-secure.middlewares=strip-chain"
       # Set the TLS (Transport Layer Security) properties
       - "traefik.http.routers.gitea-secure.tls=true"
-      - "traefik.http.routers.gitea-secure.tls.certresolver=http"
       # Other settings
-      - "traefik.http.routers.gitea.service=gitea_app"
       - "traefik.http.services.gitea.loadbalancer.server.port=${GITEA_APP_PORT}"
-      - "traefik.docker.network=gitea-net"
+      - "traefik.docker.network=traefik_traefik-net"
     volumes:
       # Setup the volume to persist repositories and other data to host
       - "${GITEA_APP_HOST_DATA_PATH}:/data"
     networks:
       # Using two networks, the internal to communicate with the DB, and the external to communicate with traefik
       - gitea-net
-      - traefik-net
+      - traefik_traefik-net
     depends_on:
       # Waiting for the database to be ready before starting Gitea
       gitea_database:
@@ -90,5 +88,5 @@ services:
 networks:
   gitea-net:
     external: false
-  traefik-net:
+  traefik_traefik-net:
     external: true

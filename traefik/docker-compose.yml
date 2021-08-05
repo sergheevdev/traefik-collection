@@ -9,22 +9,31 @@ services:
     ports:
       - "80:80"   # HTTP
       - "443:443" # HTTPS
+    # CLI (Command Line Interface) arguments
     command:
-      # CLI arguments
+      # Global parameters
       - "--global.checkNewVersion=true"
       - "--global.sendAnonymousUsage=false"
+      # Networking security settings
       - "--entrypoints.http.address=:80"
       - "--entrypoints.https.address=:443"
       - "--entrypoints.traefik.address=:8080"
+      - -"-serversTransport.insecureSkipVerify=true"
+      # API properties
       - "--api=true"
       - "--api.insecure=true"
+      # Logging
       - "--log=true"
       - "--accesslog=true"
       - "--accesslog.filePath=/traefik.log"
       - "--accesslog.bufferingSize=100"
       - "--accesslog.filters.statusCodes=400-499"
+      # Docker specifics
       - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=true"
+      - "--providers.docker.swarmMode=false"
     labels:
+      # Make traefik listen this container
       - "traefik.enable=true"
       # Redirect HTTP to HTTPS
       - "traefik.http.routers.http-catchall.entrypoints=http"
@@ -34,6 +43,7 @@ services:
     volumes:
       # Make traefik listen to docker events
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Other configuration and logging volumes
       - ./data/certs:/certs
       - ./data/config:/etc/traefik
       - ./data/traefik.log:/traefik.log
@@ -42,4 +52,3 @@ services:
 
 networks:
   traefik-net:
-    external: true

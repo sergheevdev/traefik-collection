@@ -1,6 +1,6 @@
-tls:
-  stores:
-    default:
-      defaultCertificate:
-        certFile: /certs/server.crt
-        keyFile: /certs/server.key
+#tls:
+#  stores:
+#    default:
+#      defaultCertificate:
+#        certFile: /certs/server.crt
+#        keyFile: /certs/server.key
